@@ -1,0 +1,5 @@
+{
+  "tasks": {
+    "dev": "deno run --unstable --watch --allow-env --allow-net mod.ts"
+  }
+}
