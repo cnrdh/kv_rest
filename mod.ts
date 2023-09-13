@@ -23,9 +23,44 @@ export const createKvRest = ({ kv }: KvRestInit) => {
       return true === params.raw ? sendJson(raw) : sendJson(true);
     };
 
+    const GETListStream = async (_) => {
+      const prefix = key.slice(0, -1);
+
+      const body = new ReadableStream({
+        start(controller) {
+          const iter = kv.list({ prefix });
+          // The following function handles each data chunk
+          async function push() {
+            for await (const raw of iter) {
+              const { value } = raw;
+              const msg = new TextEncoder().encode(
+                `data: ${JSON.stringify(value)}\r\n\r\n`,
+              );
+              controller.enqueue(msg);
+            }
+
+            controller.close();
+            return;
+          }
+          push();
+        },
+
+        cancel() {
+          if (typeof timerId === "number") {
+            clearInterval(timerId);
+          }
+        },
+      });
+      return new Response(body, {
+        headers: {
+          "Content-Type": "text/event-stream; charset=utf-8",
+        },
+      });
+    };
+
     const GET = async (request: Request): Promise<Response> => {
       if (key.at(-1) === "") {
-        return getAndSendList({ request, kv, params, key });
+        return GETListStream(request);
       } else {
         const raw = await kv.get(key);
         const status = raw?.value !== null ? 200 : 404;
